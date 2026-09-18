@@ -27,6 +27,9 @@ impl NvimConf<'_> {
                 // put splits on the correct sides (why is the default splitabove, wtf)
                 splitright = true;
                 splitbelow = true;
+
+                secure = true;
+                exrc = true;
             })
         })
         .ok_or_notify(self);

@@ -19,6 +19,14 @@ impl NvimConf<'_> {
         }
 
         self.with_vim_g(|g| {
+            if let cur_opts = g.get("rustaceanvim")
+                && !cur_opts.as_ref().is_ok_and(|it| matches!(it, LuaVal::Nil))
+            {
+                self.notify(
+                    format!("vim.g.rustaceanvim: expected nil, got\n{cur_opts:?}"),
+                    NotifyLevel::Warn,
+                );
+            }
             tbl!(out(g), {
                 rustaceanvim = self.rustaceanvim_opts();
             })
@@ -30,9 +38,6 @@ impl NvimConf<'_> {
         let ra_opts = tbl!(owned, {
             assist = tbl!(owned, {
                 preferSelf = true;
-                // cargo = tbl!(owned, {
-                //     target = "";
-                // });
             });
         });
 
