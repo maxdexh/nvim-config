@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{env::gvim::keymap::KeymapOpts, prelude::*};
 
 crate::utils::from_tbl_proxy!({
     struct Persistence {
@@ -20,5 +20,14 @@ impl NvimConf<'_> {
         self.add_packs(["https://github.com/folke/persistence.nvim"]);
 
         self.req_persistence().ok_or_notify(self);
+
+        self.set_keymap(
+            "n",
+            "<leader>ul",
+            self.mk_callback(|conf, ()| conf.req_persistence()?.load()?.call(())),
+            mk_builder!(KeymapOpts, {
+                desc = "Load last session (persistence)";
+            }),
+        );
     }
 }
