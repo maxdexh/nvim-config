@@ -36,7 +36,7 @@ impl NvimConf<'_> {
 
         let cb = self.mk_callback(|conf, args: LuaStruct<AutoCmdArgs>| {
             let ft = args.r#match()?;
-            let vts = conf.env().globals.vim()?.treesitter()?;
+            let vts = conf.vim()?.treesitter()?;
 
             let Some(lang) = vts.language()?.get_lang()?.call(ft)? else {
                 return Ok(());

@@ -1,4 +1,10 @@
-use crate::{env::gvim::keymap::KeymapOpts, prelude::*};
+use crate::{
+    env::gvim::{
+        api::{UserCommandArg, UserCommandOpts},
+        keymap::KeymapOpts,
+    },
+    prelude::*,
+};
 
 fn call_picker(
     conf: &NvimConf,
@@ -8,7 +14,7 @@ fn call_picker(
     conf.req_snacks()?.picker()?.get(name)?.call(args)
 }
 fn get_cwd(conf: &NvimConf) -> Result<LuaString> {
-    conf.env().globals.vim()?.uv()?.cwd()?.call(())
+    conf.vim()?.uv()?.cwd()?.call(())
 }
 fn get_root(conf: &NvimConf) -> Result<LuaString> {
     conf.req_snacks()
@@ -24,7 +30,7 @@ impl NvimConf<'_> {
                 ["i", "n", "s"],
                 "<esc>",
                 self.mk_func(|conf, ()| {
-                    conf.env().globals.vim()?.cmd()?.call("noh")?;
+                    conf.vim()?.cmd()?.call("noh")?;
                     Ok("<esc>")
                 }),
                 mk_builder!(KeymapOpts, {
@@ -171,7 +177,7 @@ impl NvimConf<'_> {
             );
         }
 
-        if let Some(lspb) = do_try(|| self.env().globals.vim()?.lsp()?.buf()).ok_or_notify(self) {
+        if let Some(lspb) = do_try(|| self.vim()?.lsp()?.buf()).ok_or_notify(self) {
             self.set_keymap(
                 ["n", "x"],
                 "<leader>ca",
@@ -210,7 +216,7 @@ impl NvimConf<'_> {
         self.set_keymap(
             "n",
             "<leader>xc",
-            do_try(|| self.env().globals.vim()?.diagnostic()?.open_float()),
+            do_try(|| self.vim()?.diagnostic()?.open_float()),
             mk_builder!(KeymapOpts, {
                 desc = "Show Diagnostic";
             }),
@@ -250,7 +256,7 @@ impl NvimConf<'_> {
             "n",
             "gi",
             if self.is_vscode() {
-                do_try(|| self.env().globals.vim()?.lsp()?.buf()?.implementation())
+                do_try(|| self.vim()?.lsp()?.buf()?.implementation())
             } else {
                 self.mk_callback(|conf, ()| call_picker(conf, "lsp_implementations", LuaNil))
             },
@@ -263,7 +269,7 @@ impl NvimConf<'_> {
             "n",
             "gr",
             if self.is_vscode() {
-                do_try(|| self.env().globals.vim()?.lsp()?.buf()?.references())
+                do_try(|| self.vim()?.lsp()?.buf()?.references())
             } else {
                 self.mk_callback(|env, ()| call_picker(env, "lsp_references", LuaNil))
             },
@@ -368,5 +374,43 @@ impl NvimConf<'_> {
         }
         diag_jump!("e", "error");
         diag_jump!("w", "warn");
+
+        self.create_user_command(
+            "CopyBufPath",
+            self.mk_callback(|conf, opts: LuaStruct<UserCommandArg>| {
+                let funcs = conf.vim()?.r#fn()?;
+
+                let args = opts.fargs()?;
+                let count = opts.count()?;
+
+                let mut abs = false;
+                for i in 0..count {
+                    let arg: LuaString = conf.convert(args.get(i)?)?;
+
+                    match &*arg.as_bytes() {
+                        b"abs" => abs = true,
+                        _ => {
+                            return Err(Error::msg(format_args!(
+                                "invalid arg {}",
+                                String::from_utf8_lossy(&arg.as_bytes())
+                            )));
+                        }
+                    }
+                }
+
+                let path: LuaString = funcs.get("expand")?.call_any(
+                    if abs { "%" } else { "%:p:." }, //
+                )?;
+
+                conf.vim()?.notify()?.call({
+                    let mut s = b"Copied to \"+:\n".to_vec();
+                    s.extend_from_slice(&path.as_bytes());
+                    conf.lua().create_string(s)
+                })?;
+                funcs.get("setreg")?.call_any::<()>(("+", path))
+            }),
+            mk_builder!(UserCommandOpts, {}),
+        )
+        .ok_or_notify(self);
     }
 }

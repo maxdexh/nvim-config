@@ -23,6 +23,20 @@ impl Error {
         inner.chain.context(Box::new(ctx), Some(Location::caller()));
         self
     }
+
+    #[cold]
+    #[track_caller]
+    pub fn msg(msg: impl std::fmt::Display) -> Self {
+        #[derive(Debug)]
+        struct StrError(String);
+        impl std::error::Error for StrError {}
+        impl Display for StrError {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                Display::fmt(&self.0, f)
+            }
+        }
+        StrError(msg.to_string()).into()
+    }
 }
 impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

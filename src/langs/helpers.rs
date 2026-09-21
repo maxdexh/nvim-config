@@ -28,7 +28,7 @@ impl NvimConf<'_> {
     }
 
     pub fn version_range(&self, arg: impl LuaSub<LuaString>) -> Result<LuaVal> {
-        self.env().globals.vim()?.version()?.range()?.call(arg)
+        self.vim()?.version()?.range()?.call(arg)
     }
 
     pub fn nix_shell_cmd(
@@ -52,13 +52,13 @@ impl NvimConf<'_> {
         if self.is_vscode() {
             return;
         }
-        do_try(|| self.env().globals.vim()?.lsp()?.config()?.call((ls, opts))).ok_or_notify(self);
+        do_try(|| self.vim()?.lsp()?.config()?.call((ls, opts))).ok_or_notify(self);
     }
     pub fn enable_lsp(&self, ls: &str) {
         if self.is_vscode() {
             return;
         }
-        do_try(|| self.env().globals.vim()?.lsp()?.enable()?.call(ls)).ok_or_notify(self);
+        do_try(|| self.vim()?.lsp()?.enable()?.call(ls)).ok_or_notify(self);
     }
     pub fn config_lsp(&self, ls: &str, opts: impl LuaSub<LuaStruct<VimLspConfig>>) {
         if self.is_vscode() {

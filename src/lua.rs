@@ -237,12 +237,6 @@ impl Lua {
             .map(LuaTableAny)
             .map_err(Into::into)
     }
-    pub fn convert<R: PopLua>(&self, val: impl PushLua) -> Result<R> {
-        self.as_mlua()
-            .convert(val.into_mlua()?)
-            .map_err(Into::into)
-            .and_then(|it| R::from_mlua(it))
-    }
     pub fn globals(&self) -> LuaTableAny {
         LuaTableAny(self.as_mlua().globals())
     }
@@ -639,6 +633,14 @@ impl<T: LuaStructInner + PopLua> PopLua for LuaStruct<T> {
 
 pub trait AsLua {
     fn lua(&self) -> &Lua;
+
+    fn convert<R: PopLua>(&self, val: impl PushLua) -> Result<R> {
+        self.lua()
+            .as_mlua()
+            .convert(val.into_mlua()?)
+            .map_err(Into::into)
+            .and_then(|it| R::from_mlua(it))
+    }
 }
 impl<T: AsLua> AsLua for &T {
     fn lua(&self) -> &Lua {
