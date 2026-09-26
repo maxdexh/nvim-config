@@ -1,0 +1,42 @@
+{
+  "$schema": "https://raw.githubusercontent.com/EmmyLuaLs/emmylua-analyzer-rust/refs/heads/main/crates/emmylua_code_analysis/resources/schema.json",
+  "workspace": {
+    "enableReindex": true,
+    "reindexDuration": 20000,
+    "encoding": "utf-8",
+    "ignoreDir": [
+      ".git",
+      ".venv"
+    ],
+    "library": [
+      "$LAZY_LIBRARY_PATH_PREFIX/LazyVim/lua",
+      "$LAZY_LIBRARY_PATH_PREFIX/lazy.nvim/lua",
+      "$LAZY_LIBRARY_PATH_PREFIX/telescope.nvim/lua",
+      "$LAZY_LIBRARY_PATH_PREFIX/none-ls.nvim/lua",
+      "$LAZY_LIBRARY_PATH_PREFIX/multicursor.nvim/lua",
+      "$LAZY_LIBRARY_PATH_PREFIX/LuaSnip/lua",
+      "$LAZY_LIBRARY_PATH_PREFIX/nvim-dap/lua",
+      "$LAZY_LIBRARY_PATH_PREFIX/oil.nvim/lua",
+      "$VIMRUNTIME/lua"
+    ],
+    "moduleMap": [],
+    "workspaceRoots": [
+      "lua"
+    ]
+  },
+  "runtime": {
+    "version": "LuaJIT"
+  },
+  "diagnostics": {
+    "globals": [
+      "vim",
+      "Snacks"
+    ]
+  },
+  "strict": {
+    "arrayIndex": true,
+    "docBaseConstMatchBaseType": true,
+    "metaOverrideFileDefine": true,
+    "requirePath": true
+  }
+}
