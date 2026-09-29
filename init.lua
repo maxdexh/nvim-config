@@ -1,4 +1,48 @@
-local config_path = vim.fn.stdpath("config") --[[@as string]]
+local config_dir = vim.fn.stdpath("config") --[[@as string]]
+
+local debug = vim.fn.getenv("NVIM_DEBUG") ~= vim.NIL
+
+---@param root string
+---@return string
+local function dir_stamp(root)
+	local parts = {}
+
+	local function walk(dir)
+		local handle = vim.uv.fs_scandir(dir)
+		if not handle then
+			return
+		end
+
+		while true do
+			local name, typ = vim.uv.fs_scandir_next(handle)
+			if not name then
+				break
+			end
+
+			local path = vim.fs.joinpath(dir, name)
+			local stat = vim.uv.fs_stat(path)
+
+			if stat then
+				if typ == "directory" then
+					walk(path)
+				elseif typ == "file" then
+					parts[#parts + 1] = table.concat({
+						path,
+						stat.size,
+						stat.mtime.sec,
+						stat.mtime.nsec,
+					}, "\0")
+				end
+			end
+		end
+	end
+
+	walk(root)
+
+	table.sort(parts)
+
+	return vim.fn.sha256(table.concat(parts, "\n"))
+end
 
 ---@return string
 local function compile_blocking()
@@ -7,12 +51,12 @@ local function compile_blocking()
 		"build",
 		"--message-format=json-render-diagnostics",
 	}
-	if vim.fn.getenv("NVIM_DEBUG") == vim.NIL then
+	if not debug then
 		table.insert(cmd, "--release")
 	end
 
 	local opts = {
-		cwd = config_path,
+		cwd = config_dir,
 		text = true,
 	}
 
@@ -63,54 +107,36 @@ local function compile_blocking()
 	return get_artifact(vim.system(cmd, opts):wait())
 end
 
-local build_dir = vim.fs.joinpath(config_path, "target", "bak")
+local cache_dir = vim.fs.joinpath(config_dir, "target", "config-lib-cache")
 
----@param time integer
+---@param stamp string
 ---@return string
-local function make_store_path(time)
-	local output = vim.system({
-		"git",
-		"rev-parse",
-		"--short",
-		"HEAD",
-	}, {
-		cwd = config_path,
-	}):wait(100)
-
-	local commit_hash = output.code == 0 and output.stdout or "unknown"
-	commit_hash = vim.fn.trim(commit_hash, "\n ")
-
-	return vim.fs.joinpath(build_dir, "nvim-config-" .. commit_hash .. "-" .. tostring(time))
+local function get_store_path(stamp)
+	return vim.fs.joinpath(cache_dir, "nvim-config-" .. tostring(stamp))
 end
 
 ---@return string
-local function get_store_newest()
-	local newest_ts ---@type number?
-	local newest_lib ---@type string?
+local function get_newest_lib()
+	local newest ---@type string?
+	local newest_time = -1 ---@type number
 
-	for name, typ in vim.fs.dir(build_dir) do
-		(function()
-			if typ ~= "file" and typ ~= "link" then
-				return
-			end
-			local parts = vim.split(name, "-")
-			if #parts == 0 then
-				return
-			end
-			local timestamp = tonumber(parts[#parts])
-			if timestamp == nil then
-				return
-			end
+	for name, type in vim.fs.dir(cache_dir) do
+		if type == "file" then
+			local path = vim.fs.joinpath(cache_dir, name)
+			local stat = vim.uv.fs_stat(path)
 
-			if newest_ts == nil or timestamp > newest_ts then
-				newest_ts = timestamp
-				newest_lib = name
+			if stat then
+				local mtime = stat.mtime.sec
+				if mtime > newest_time then
+					newest = path
+					newest_time = mtime
+				end
 			end
-		end)()
+		end
 	end
 
-	if newest_lib then
-		return vim.fs.joinpath(build_dir, newest_lib)
+	if newest then
+		return newest
 	end
 
 	error("Found no candidate libs in store")
@@ -127,35 +153,70 @@ local function load_lib(path)
 	error("Failed to load nvim config lib:\n" .. path)
 end
 
-local timestamp = vim.fn.localtime()
-local compile_ok, compile_error = pcall(function()
+---@param lib fun()
+---@return boolean
+local function run_lib(lib)
+	-- Errors should already be printed by the config
+	return (pcall(lib))
+end
+
+local lib_cache_path = get_store_path(dir_stamp(vim.fs.joinpath(config_dir, "src")))
+
+if not debug and vim.fn.filereadable(lib_cache_path) == 1 then
+	local reload_ok, reload_error = pcall(function()
+		run_lib(load_lib(get_newest_lib()))
+	end)
+
+	vim.defer_fn(function()
+		if not reload_ok then
+			vim.notify(reload_error, vim.log.levels.ERROR)
+		end
+	end, 100)
+	return
+end
+
+local compile_ok, comp_err_or_lib_fn, lib_path = pcall(function()
 	local lib_path = compile_blocking()
 
-	load_lib(lib_path)()
-
-	vim.api.nvim_create_user_command("StoreConfigLib", function()
-		local store_path = make_store_path(timestamp)
-		local store_dir = vim.fs.dirname(store_path)
-		if vim.fn.mkdir(store_dir, "p") == 0 then
-			error("failed to create store directory:\n" .. store_dir)
-		end
-		if vim.fn.filecopy(lib_path, store_path) == 0 then
-			error("failed to copy config lib to store:\n" .. "src: " .. lib_path .. "\ndst: " .. store_path)
-		end
-		vim.notify("successfully copied config lib to store:\n" .. store_path)
-	end, {})
+	return load_lib(lib_path), lib_path
 end)
+
 if compile_ok then
+	if not run_lib(comp_err_or_lib_fn) then
+		return
+	end
+
+	if debug then
+		return
+	end
+
+	-- Only cache the lib if we successfully make it out of the config
+	-- and are not in debug mode
+	local store_dir = vim.fs.dirname(lib_cache_path)
+
+	if vim.fn.mkdir(store_dir, "p") == 0 then
+		vim.fn.notify("failed to create lib cache dir:\n" .. store_dir, vim.log.levels.ERROR)
+		return
+	end
+
+	if vim.fn.filecopy(lib_path, lib_cache_path) == 0 then
+		vim.fn.notify(
+			"failed to copy config lib to cache dir:\n" .. "src: " .. lib_path .. "\ndst: " .. lib_cache_path,
+			vim.log.levels.ERROR
+		)
+		return
+	end
+	vim.notify("successfully cached new config lib:\n" .. lib_cache_path)
+
 	return
 end
 
 local reload_ok, reload_error = pcall(function()
-	local lib_path = get_store_newest()
-	load_lib(lib_path)()
+	run_lib(load_lib(get_newest_lib()))
 end)
 
 vim.defer_fn(function()
-	vim.notify(compile_error, vim.log.levels.ERROR)
+	vim.notify(comp_err_or_lib_fn, vim.log.levels.ERROR)
 	if not reload_ok then
 		vim.notify(reload_error, vim.log.levels.ERROR)
 	end
