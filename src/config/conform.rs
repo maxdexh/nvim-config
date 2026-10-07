@@ -20,7 +20,7 @@ impl NvimConf<'_> {
         }
         let fmt_on_save = {
             let opts_tbl = tbl!(owned, {
-                timeout_ms = 500;
+                timeout_ms = 1000;
                 lsp_format = "fallback";
             })
             .eval(self)?;
