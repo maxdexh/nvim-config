@@ -36,15 +36,16 @@ impl NvimConf<'_> {
         package: &str,
         command: impl IntoIterator<Item: LuaSub<LuaString>>,
     ) -> Result<LuaSeq<LuaString>> {
-        let table = self.lua().create_sequence_from([
-            "nix", //
-            "shell",
-            format!("nixpkgs#{package}").as_str(),
-            "--command",
-        ])?;
-        for arg in command {
-            table.raw_push_any(arg)?;
-        }
+        let table = self.lua().create_sequence_from(std::iter::chain(
+            [
+                "nix", //
+                "shell",
+                format!("nixpkgs#{package}").as_str(),
+                "--command",
+            ]
+            .map(LuaUnion::Left),
+            command.into_iter().map(LuaUnion::Right),
+        ))?;
         Ok(LuaSeq::cast_table_any(table))
     }
 

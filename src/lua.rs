@@ -1,6 +1,8 @@
 use crate::prelude::*;
 use std::marker::PhantomData;
 
+// TODO: Write custom wrapper around lua api, get rid of mlua
+
 pub type Error = crate::error::Error;
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -189,8 +191,8 @@ impl<L: PopLua, R: PopLua> PopLua for LuaUnion<L, R> {
     }
 }
 
-struct TranslateMlua<T>(T);
-impl<T: PushLua> mlua::IntoLua for TranslateMlua<T> {
+struct WrapMlua<T>(T);
+impl<T: PushLua> mlua::IntoLua for WrapMlua<T> {
     fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
         mlua::IntoLua::into_lua(self.0.into_mlua()?, lua)
     }
@@ -221,7 +223,7 @@ impl Lua {
         iter: impl IntoIterator<Item = T>,
     ) -> Result<LuaTableAny> {
         self.as_mlua()
-            .create_sequence_from(iter.into_iter().map(TranslateMlua))
+            .create_sequence_from(iter.into_iter().map(WrapMlua))
             .map(LuaTableAny)
             .map_err(Into::into)
     }
@@ -230,10 +232,7 @@ impl Lua {
         iter: impl IntoIterator<Item = (K, V)>,
     ) -> Result<LuaTableAny> {
         self.as_mlua()
-            .create_table_from(
-                iter.into_iter()
-                    .map(|(k, v)| (TranslateMlua(k), TranslateMlua(v))),
-            )
+            .create_table_from(iter.into_iter().map(|(k, v)| (WrapMlua(k), WrapMlua(v))))
             .map(LuaTableAny)
             .map_err(Into::into)
     }
