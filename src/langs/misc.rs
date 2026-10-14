@@ -16,7 +16,7 @@ impl NvimConf<'_> {
         self.config_lsp(
             "fish_lsp",
             mk_builder!(VimLspConfig, {
-                cmd = self.nix_shell_cmd("fish-lsp", ["fish-lsp"]);
+                cmd = self.nix_shell_cmd("fish-lsp", ["fish-lsp", "start"]);
             }),
         );
     }
