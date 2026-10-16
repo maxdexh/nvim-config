@@ -23,11 +23,11 @@ fn get_root(conf: &NvimConf) -> Result<LuaString> {
 }
 impl NvimConf<'_> {
     pub fn load_keybinds(&self) {
-        for (lhs, desc) in [(b'<', "Dedent selection"), (b'>', "Indent selection")] {
+        for (lhs, desc) in [("<", "Dedent selection"), (">", "Indent selection")] {
             self.set_keymap(
                 "x",
-                BStr::new(&[lhs]),
-                BStr::new(&[lhs, b'g', b'v']),
+                lhs,
+                format!("{lhs}gv"),
                 mk_builder!(KeymapOpts, {
                     desc = desc;
                 }),
@@ -309,82 +309,67 @@ impl NvimConf<'_> {
             );
         }
 
-        macro_rules! resize {
-            ($k:expr, $pref:expr, $v:expr, $desc:expr) => {
+        if !self.is_vscode() {
+            for (k, pref, v, desc) in [
+                ("Down", "", "-2", "Decrease window height"),
+                ("Up", "", "+2", "Increase window height"),
+                ("Left", "vertical ", "-2", "Decrease window width"),
+                ("Right", "vertical ", "+2", "Increase window width"),
+            ] {
                 self.set_keymap(
                     "n",
-                    concat!("<C-", $k, ">"),
-                    concat!("<CMD>", $pref, "resize ", $v, "<CR>"),
+                    format!("<C-{k}>"),
+                    format!("<CMD>{pref}resize {v}<CR>"),
                     mk_builder!(KeymapOpts, {
-                        desc = $desc;
+                        desc = desc;
                     }),
                 )
-            };
-        }
-        if !self.is_vscode() {
-            resize!("Down", "", "-2", "Decrease window height");
-            resize!("Up", "", "+2", "Increase window height");
-            resize!("Left", "vertical ", "-2", "Decrease window width");
-            resize!("Right", "vertical ", "+2", "Increase window width");
+            }
         }
 
-        macro_rules! goto_window {
-            ($k:expr, $desc:expr) => {
-                self.set_keymap(
-                    "n",
-                    concat!("<C-", $k, ">"),
-                    concat!("<C-w>", $k),
-                    mk_builder!(KeymapOpts, {
-                        desc = concat!("Go to ", $desc, " window");
-                    }),
-                )
-            };
-        }
         // TODO: Reimplement similar in vscode?
         if !self.is_vscode() {
-            goto_window!("j", "down");
-            goto_window!("k", "up");
-            goto_window!("h", "left");
-            goto_window!("l", "right");
-        }
-
-        macro_rules! diag_jump_base {
-            ($kb:expr, $count:expr, $sev:expr, $adj:expr) => {
+            for (k, desc) in [("j", "down"), ("k", "up"), ("h", "left"), ("l", "right")] {
                 self.set_keymap(
                     "n",
-                    $kb,
+                    format!("<C-{k}>"),
+                    format!("<C-w>{k}"),
+                    mk_builder!(KeymapOpts, {
+                        desc = format!("Go {desc} window");
+                    }),
+                )
+            }
+        }
+
+        for (k, sev) in [("e", "error"), ("w", "warn")] {
+            for (pref, count, adj) in [("[", -1, "previous"), ("]", 1, "next")] {
+                self.set_keymap(
+                    "n",
+                    format!("{pref}{k}"),
                     if self.is_vscode() {
                         self.mk_callback(|_, ()| {
-                            // TODO: Jump to diag
+                            // TODO: Jump to diagnostic
                             Ok(())
                         })
                     } else {
-                        self.mk_callback(|conf, ()| {
+                        self.mk_callback(move |conf, ()| {
                             conf.env()
                                 .globals
                                 .vim()?
                                 .diagnostic()?
                                 .jump()?
                                 .call(tbl!(owned, {
-                                    count = $count;
-                                    severity = $sev;
+                                    count = count;
+                                    severity = sev;
                                 }))
                         })
                     },
                     mk_builder!(KeymapOpts, {
-                        desc = concat!("Go to ", $adj, " ", $sev);
+                        desc = format!("Go to {adj} {sev}");
                     }),
                 );
-            };
+            }
         }
-        macro_rules! diag_jump {
-            ($k:expr, $sev:expr) => {
-                diag_jump_base!(concat!("[", $k), -1, $sev, "previous");
-                diag_jump_base!(concat!("]", $k), 1, $sev, "next");
-            };
-        }
-        diag_jump!("e", "error");
-        diag_jump!("w", "warn");
 
         self.create_user_command(
             "CopyBufPath",
@@ -413,11 +398,10 @@ impl NvimConf<'_> {
                     if abs { "%" } else { "%:p:." }, //
                 )?;
 
-                conf.vim()?.notify()?.call({
-                    let mut s = b"Copied to \"+:\n".to_vec();
-                    s.extend_from_slice(&path.as_bytes());
-                    conf.lua().create_string(s)
-                })?;
+                conf.vim()?.notify()?.call(bstr::BString::from_iter([
+                    b"Copied to \"+:\n",
+                    &*path.as_bytes(),
+                ]))?;
                 funcs.get("setreg")?.call_any::<()>(("+", path))
             }),
             mk_builder!(UserCommandOpts, {}),
