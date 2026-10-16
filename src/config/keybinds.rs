@@ -23,6 +23,17 @@ fn get_root(conf: &NvimConf) -> Result<LuaString> {
 }
 impl NvimConf<'_> {
     pub fn load_keybinds(&self) {
+        for (lhs, desc) in [(b'<', "Dedent selection"), (b'>', "Indent selection")] {
+            self.set_keymap(
+                "x",
+                BStr::new(&[lhs]),
+                BStr::new(&[lhs, b'g', b'v']),
+                mk_builder!(KeymapOpts, {
+                    desc = desc;
+                }),
+            );
+        }
+
         // TODO: Make <C-q> work correctly on vsc
 
         if !self.is_vscode() {

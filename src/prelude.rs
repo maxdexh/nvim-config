@@ -10,3 +10,4 @@ pub use crate::lua::{
 pub use crate::typing::{
     FromLuaMultiTyped, FromLuaTyped, IntoLuaMultiTyped, IntoLuaTyped, LuaSub, LuaSubMulti,
 };
+pub use bstr::BStr;
