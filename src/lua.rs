@@ -1,8 +1,6 @@
 use crate::prelude::*;
 use std::marker::PhantomData;
 
-// TODO: Write custom wrapper around lua api, get rid of mlua
-
 pub type Error = crate::error::Error;
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -578,12 +576,6 @@ impl<T, F: FnOnce(&Lua) -> T> LuaDefer<F> {
 pub fn lua_defer_val<T, F: FnOnce(&Lua) -> Result<T>>(f: F) -> LuaDefer<F> {
     LuaDefer(f)
 }
-macro_rules! LuaDeferImpl {
-    ($res:ty) => {
-        crate::lua::LuaDefer<impl FnOnce(&crate::lua::Lua) -> crate::lua::Result<$res>>
-    };
-}
-pub(crate) use LuaDeferImpl;
 impl<T: PushLua, F: FnOnce(&Lua) -> T> mlua::IntoLua for LuaDefer<F> {
     fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<LuaVal> {
         self.eval(lua)

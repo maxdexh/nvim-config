@@ -9,13 +9,12 @@ pub type LuaDictMut<V> = LuaMapMut<LuaString, V>;
 
 #[doc(hidden)]
 pub mod __mac {
-    use crate::lua::LuaDeferImpl;
     use crate::prelude::*;
 
     pub fn single_key_val<K: PushLua, V: PushLua>(
         key: K,
         val: V,
-    ) -> LuaDeferImpl!(LuaMapOwned<K, V>) {
+    ) -> crate::lua::LuaDefer<impl FnOnce(&Lua) -> Result<LuaMapOwned<K, V>>> {
         lua_defer_val(|lua| {
             lua.create_table_from([(key, val)])
                 .map(LuaMapOwned::cast_table_any)

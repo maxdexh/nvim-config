@@ -63,6 +63,7 @@ macro_rules! supply_backtrace {
 }
 
 #[cold]
+#[track_caller]
 fn from_arc_dyn(mut inner: Arc<dyn error::Error + Send + Sync>) -> ErrorMaybeBt {
     inner = match downcast_arc_error::<Arc<mlua::Error>>(inner) {
         Ok(error) => return from_arc_mlua(Arc::unwrap_or_clone(error)),
@@ -74,6 +75,7 @@ fn from_arc_dyn(mut inner: Arc<dyn error::Error + Send + Sync>) -> ErrorMaybeBt 
     }
 }
 #[cold]
+#[track_caller]
 fn from_arc_dyn_ignore_mlua(inner: Arc<dyn error::Error + Send + Sync>) -> ErrorMaybeBt {
     match downcast_arc_error(inner) {
         Ok(inner) => Ok(Error(inner)),
@@ -81,6 +83,7 @@ fn from_arc_dyn_ignore_mlua(inner: Arc<dyn error::Error + Send + Sync>) -> Error
     }
 }
 #[cold]
+#[track_caller]
 fn from_mlua(error: mlua::Error) -> ErrorMaybeBt {
     match error {
         mlua::Error::ExternalError(error) => from_arc_dyn(error),
@@ -165,6 +168,7 @@ where
     E: error::Error + Send + Sync + 'static,
 {
     #[cold]
+    #[track_caller]
     fn from(value: E) -> Self {
         supply_backtrace!(from_arc_dyn(Arc::new(value)))
     }
