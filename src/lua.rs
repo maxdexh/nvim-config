@@ -140,7 +140,13 @@ const _: () = {
             triv_conv_impl_into!($int);
         )*};
     }
-    strs!(&str, String, &crate::lua::LuaString);
+    strs!(
+        &str,
+        String,
+        &crate::lua::LuaString,
+        bstr::BString,
+        &bstr::BStr,
+    );
 };
 
 pub type LuaNum = mlua::Number;

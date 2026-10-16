@@ -294,7 +294,7 @@ mod into_impls {
     const _: () = {
         mk_defer_to_ty!(defer_str, crate::lua::LuaString);
         macro_rules! lua_strs {
-            ($($t:ty),*) => {$(
+            ($($t:ty),* $(,)?) => {$(
                 impl_into!({
                     impl $t {}
 
@@ -302,7 +302,13 @@ mod into_impls {
                 });
             )*};
         }
-        lua_strs!(&str, String, &crate::lua::LuaString);
+        lua_strs!(
+            &str,
+            String,
+            &crate::lua::LuaString,
+            &bstr::BStr,
+            bstr::BString,
+        );
     };
 
     impl_into!({
